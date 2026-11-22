@@ -2045,6 +2045,16 @@ pub enum PyPada {
         dhatu_pada: Option<PyDhatuPada>,
         skip_at_agama: bool,
     },
+
+    /// (Experimental) A chunk of SLP1 text with no specific morphology. Use this for sandhi with
+    /// :meth:`~vidyut.prakriya.Vyakarana.derive_vakyas`.
+    #[pyo3(constructor = (text))]
+    Unknown { text: String },
+
+    /// (Experimental) A *nipāta* (particle) with the given SLP1 text. Use this for sandhi with
+    /// :meth:`~vidyut.prakriya.Vyakarana.derive_vakyas`.
+    #[pyo3(constructor = (text))]
+    Nipata { text: String },
 }
 
 #[pymethods]
@@ -2057,5 +2067,21 @@ impl PyPada {
             vibhakti: None,
             vacana: None,
         }
+    }
+
+    /// (Experimental) Create a pada from SLP1 text with no specific morphology.
+    ///
+    /// This is a shorthand for ``Pada.Unknown(text)``.
+    #[staticmethod]
+    pub fn from_text(text: String) -> Self {
+        Self::Unknown { text }
+    }
+
+    /// (Experimental) Create a *nipāta* pada from SLP1 text.
+    ///
+    /// This is a shorthand for ``Pada.Nipata(text)``.
+    #[staticmethod]
+    pub fn nipata(text: String) -> Self {
+        Self::Nipata { text }
     }
 }

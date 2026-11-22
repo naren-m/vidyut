@@ -52,6 +52,16 @@ class Dhatu:
 class Prakriya:
     text: str
 
+class Pada:
+    # (Experimental) Plain SLP1 text with no specific morphology.
+    @staticmethod
+    def from_text(text: str) -> "Pada":
+        pass
+    # (Experimental) A nipata (particle) in SLP1.
+    @staticmethod
+    def nipata(text: str) -> "Pada":
+        pass
+
 class Vyakarana:
     def __init__(self):
         pass
@@ -71,6 +81,9 @@ class Vyakarana:
         vibhakti: Vibhakti,
         vacana: Vacana,
     ) -> List[Prakriya]:
+        pass
+    # (Experimental) Return all sandhi results for the given sequence of padas.
+    def derive_vakyas(self, padas: List[Pada]) -> List[Prakriya]:
         pass
 
 class Dhatupatha:

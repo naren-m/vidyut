@@ -381,3 +381,62 @@ def test_derive_dhatus():
     prakriyas = v.derive(upa_r)
     assert len(prakriyas) == 1
     assert prakriyas[0].text == "upAr"
+
+
+# Cases ported from vidyut-prakriya's `assert_has_sandhi` tests (spaces removed,
+# since `Prakriya.text` joins words). Variants are separated by `|`.
+@pytest.mark.parametrize(
+    "first,second,expected",
+    [
+        # From kashika_8_4.rs
+        ("vAk", "hasati", "vAgGasati|vAghasati"),
+        ("agnicit", "hasati", "agnicidDasati|agnicidhasati"),
+        ("vfkzas", "cinoti", "vfkzaScinoti"),
+        ("agnicit", "jayati", "agnicijjayati"),
+        ("agnis", "nayati", "agnirnayati"),
+        # From kashika_1_1.rs (SamI is not pragrhya)
+        ("SamI", "atra", "Samyatra"),
+        # Common cases, not in the Rust tests
+        ("tad", "hitam", "tadDitam|tadhitam"),
+        ("rAmas", "calati", "rAmaScalati"),
+        ("punar", "api", "punarapi"),
+        ("BavAn", "ca", "BavAMSca|BavA~Sca"),
+    ],
+)
+def test_derive_vakyas_from_text(first, second, expected):
+    prakriyas = v.derive_vakyas([Pada.from_text(first), Pada.from_text(second)])
+    expected = set(expected.split("|"))
+    actual = {x.text for x in prakriyas}
+    assert expected == actual
+
+
+def test_derive_vakyas_keeps_word_boundaries_in_history():
+    prakriyas = v.derive_vakyas([Pada.from_text("vAk"), Pada.from_text("hasati")])
+    words = {tuple(t.text for t in p.history[-1].result) for p in prakriyas}
+    assert words == {("vAg", "Gasati"), ("vAg", "hasati")}
+
+    codes = {tuple(s.code for s in p.history) for p in prakriyas}
+    assert ("8.2.39", "8.4.62", "8.4.68") in codes
+
+
+def test_derive_vakyas_with_nipata():
+    # 1.1.14: a single-vowel nipata is pragrhya.
+    prakriyas = v.derive_vakyas([Pada.nipata("a"), Pada.from_text("apehi")])
+    assert {x.text for x in prakriyas} == {"aapehi"}
+
+
+def test_derive_vakyas_with_subanta():
+    # 1.1.11: a dual ending in I is pragrhya.
+    hari = Pada.Subanta(Pratipadika.basic("hari"), Linga.Pum, Vibhakti.Prathama, Vacana.Dvi)
+    etad = Pada.Subanta(Pratipadika.basic("etad"), Linga.Pum, Vibhakti.Prathama, Vacana.Dvi)
+    prakriyas = v.derive_vakyas([hari, etad])
+    assert {x.text for x in prakriyas} == {"harIetO"}
+    assert any(s.code == "1.1.11" for s in prakriyas[0].history)
+
+
+def test_pada_from_text_and_nipata():
+    assert Pada.from_text("vAk") == Pada.Unknown("vAk")
+    assert Pada.nipata("ca") == Pada.Nipata("ca")
+    assert Pada.from_text("vAk").text == "vAk"
+    # No morphology to derive.
+    assert v.derive(Pada.from_text("vAk")) == []

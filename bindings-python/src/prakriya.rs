@@ -3,7 +3,7 @@ use crate::macro_utils::py_only_enum;
 use pyo3::exceptions::{PyFileNotFoundError, PyValueError};
 use pyo3::prelude::*;
 use std::path::PathBuf;
-use vidyut_prakriya::args::{Pratipadika, Subanta, Tinanta};
+use vidyut_prakriya::args::{Pada, Pratipadika, Subanta, Tinanta};
 use vidyut_prakriya::{Dhatupatha, Vyakarana};
 use vidyut_prakriya::{Prakriya, Step};
 
@@ -404,49 +404,64 @@ impl PyVyakarana {
     }
 
     /// Return all padas that can be derived from the given arguments.
+    ///
+    /// `Pada.Unknown` and `Pada.Nipata` have no morphology to derive, so they return an empty
+    /// list.
     fn derive_padas(&self, pada: PyPada) -> Vec<PyPrakriya> {
-        match pada {
-            PyPada::Subanta {
-                pratipadika,
-                linga,
-                vibhakti,
-                vacana,
-            } => {
-                let args = if let (Some(li), Some(vi), Some(va)) = (linga, vibhakti, vacana) {
-                    Subanta::new(pratipadika.as_ref(), li.into(), vi.into(), va.into())
-                } else {
-                    Subanta::avyaya(pratipadika.as_ref())
-                };
-                let results = self.0.derive_subantas(&args);
-                to_py_prakriyas(results)
-            }
-            PyPada::Tinanta {
-                dhatu,
-                prayoga,
-                lakara,
-                purusha,
-                vacana,
-                dhatu_pada,
-                skip_at_agama,
-            } => {
-                let mut tin_args = Tinanta::builder()
-                    .dhatu(dhatu.as_rust().clone())
-                    .prayoga(prayoga.into())
-                    .purusha(purusha.into())
-                    .vacana(vacana.into())
-                    .lakara(lakara.into())
-                    .skip_at_agama(skip_at_agama);
-
-                if let Some(pada) = dhatu_pada {
-                    tin_args = tin_args.pada(pada.into());
-                }
-
-                let tin_args = tin_args.build().expect("should have all required fields");
-
-                let results = self.0.derive_tinantas(&tin_args);
-                to_py_prakriyas(results)
-            }
+        match to_rust_pada(&pada) {
+            Pada::Subanta(args) => to_py_prakriyas(self.0.derive_subantas(&args)),
+            Pada::Tinanta(args) => to_py_prakriyas(self.0.derive_tinantas(&args)),
+            Pada::Unknown(_) | Pada::Nipata(_) => Vec::new(),
         }
+    }
+}
+
+/// Converts a Python `Pada` to its Rust equivalent.
+fn to_rust_pada(pada: &PyPada) -> Pada {
+    match pada {
+        PyPada::Subanta {
+            pratipadika,
+            linga,
+            vibhakti,
+            vacana,
+        } => {
+            let args = if let (Some(li), Some(vi), Some(va)) = (linga, vibhakti, vacana) {
+                Subanta::new(
+                    pratipadika.as_ref(),
+                    (*li).into(),
+                    (*vi).into(),
+                    (*va).into(),
+                )
+            } else {
+                Subanta::avyaya(pratipadika.as_ref())
+            };
+            Pada::Subanta(args)
+        }
+        PyPada::Tinanta {
+            dhatu,
+            prayoga,
+            lakara,
+            purusha,
+            vacana,
+            dhatu_pada,
+            skip_at_agama,
+        } => {
+            let mut tin_args = Tinanta::builder()
+                .dhatu(dhatu.as_rust().clone())
+                .prayoga((*prayoga).into())
+                .purusha((*purusha).into())
+                .vacana((*vacana).into())
+                .lakara((*lakara).into())
+                .skip_at_agama(*skip_at_agama);
+
+            if let Some(pada) = dhatu_pada {
+                tin_args = tin_args.pada((*pada).into());
+            }
+
+            Pada::Tinanta(tin_args.build().expect("should have all required fields"))
+        }
+        PyPada::Unknown { text } => Pada::from_text(text),
+        PyPada::Nipata { text } => Pada::nipata(text),
     }
 }
 
@@ -513,5 +528,23 @@ impl PyVyakarana {
             Derivable::PadaEntry(p) => self.derive_padas(p.to_prakriya_args()?),
         };
         Ok(ret)
+    }
+
+    /// (Experimental) Return all sandhi results for the given sequence of padas.
+    ///
+    /// Each item in `padas` must be a :class:`~vidyut.prakriya.Pada`. Use
+    /// :meth:`Pada.from_text` for plain SLP1 text, :meth:`Pada.nipata` for particles, and
+    /// :meth:`Pada.Subanta` or :meth:`Pada.Tinanta` when morphology matters (e.g. for
+    /// *pragṛhya* rules).
+    ///
+    /// Each result's `text` is an SLP1 string with no spaces between words (e.g. ``vAgGasati``
+    /// for ``vAk`` + ``hasati``). For padas made with :meth:`Pada.from_text`, the terms in the
+    /// last step of `history` hold each word's final form. Results may contain duplicates if
+    /// several derivations produce the same text.
+    ///
+    /// Results are returned as a list of :class:`~vidyut.prakriya.Prakriya` objects.
+    pub fn derive_vakyas(&self, padas: Vec<PyPada>) -> Vec<PyPrakriya> {
+        let padas: Vec<Pada> = padas.iter().map(to_rust_pada).collect();
+        to_py_prakriyas(self.0.derive_vakyas(&padas))
     }
 }

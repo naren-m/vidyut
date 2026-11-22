@@ -207,6 +207,21 @@ To derive dhatus, use :class:`~Dhatu`:
     assert len(prakriyas) == 1
     assert prakriyas[0].text == "upAr"
 
+To join words with sandhi, use :meth:`Vyakarana.derive_vakyas` (experimental).
+It accepts a list of :class:`~Pada` objects. Use :meth:`Pada.from_text` for
+plain SLP1 text and :meth:`Pada.nipata` for particles. The output `text` has
+no spaces between words. The last step of `history` keeps the words apart:
+
+.. testcode::
+
+    v = Vyakarana()
+    prakriyas = v.derive_vakyas([Pada.from_text("vAk"), Pada.from_text("hasati")])
+    results = {p.text for p in prakriyas}
+    assert results == {"vAgGasati", "vAghasati"}
+
+    words = {tuple(t.text for t in p.history[-1].result) for p in prakriyas}
+    assert words == {("vAg", "Gasati"), ("vAg", "hasati")}
+
 
 Specifying arguments
 --------------------
